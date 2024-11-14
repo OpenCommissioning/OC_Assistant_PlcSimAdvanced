@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Company>Spiratec AG</Company>
+        <Product>OC.PlcSimAdvanced</Product>
+        <LangVersion>default</LangVersion>
+        <TargetFramework>net481</TargetFramework>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+      <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="Siemens.Simatic.Simulation.Runtime.Api.x64">
+        <HintPath>C:\Program Files (x86)\Common Files\Siemens\PLCSIMADV\API\6.0\Siemens.Simatic.Simulation.Runtime.Api.x64.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="OC.Assistant.Sdk" Version="1.4.0" />
+    </ItemGroup>
+
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="echo ^&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?^&gt;^&lt;Plugin^&gt;^&lt;AssemblyFile^&gt;$(AssemblyName).dll^&lt;/AssemblyFile^&gt;^&lt;AdditionalDirectory^&gt;C:\Program Files (x86)\Common Files\Siemens\PLCSIMADV\API^&lt;/AdditionalDirectory^&gt;^&lt;/Plugin^&gt; &gt; $(TargetDir)$(AssemblyName).plugin" />
+    </Target>
+
+</Project>

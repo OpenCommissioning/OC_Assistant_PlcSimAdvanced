@@ -43,9 +43,31 @@ jobs:
         branch: ${{ github.ref }}
         tags: true
 
+    - name: Download base64 encoded plcsim dll and decode it
+      if: steps.versionize.outcome == 'success'
+      env:
+        GH_TOKEN: ${{ secrets.GH_GIST_PAT }}
+        GIST_ID: ${{ secrets.GIST_ID }}
+      run: |
+        RAW_URL=$(gh api /gists/$GIST_ID | jq -r '.files.plcsimDLL.raw_url')
+        curl -L "$RAW_URL" > plcsim-base64.txt
+        base64 -d plcsim-base64.txt > OC.Assistant.Sdk/Siemens.Simatic.Simulation.Runtime.Api.x64.dll   
+
+    - name: Dotnet build
+      if: steps.versionize.outcome == 'success'
+      run: dotnet build OC.PlcSimAdvanced --configuration release --output ./Publish
+
     - name: Publish new release
       if: steps.versionize.outcome == 'success'
       run: |
         gh release create ${{env.VERSION}} -t "Release ${{env.VERSION}}" -F latest_changelog.md
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload release artifact
+      if: steps.versionize.outcome == 'success'
+      run: |
+        gh release upload ${{env.VERSION}} ./Publish/OC.PlcSimAdvanced.dll
+        gh release upload ${{env.VERSION}} ./Publish/OC.PlcSimAdvanced.plugin
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

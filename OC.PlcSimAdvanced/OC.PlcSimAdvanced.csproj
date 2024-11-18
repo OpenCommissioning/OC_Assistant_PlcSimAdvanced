@@ -16,7 +16,7 @@
 
     <ItemGroup>
       <Reference Include="Siemens.Simatic.Simulation.Runtime.Api.x64">
-        <HintPath>C:\Program Files (x86)\Common Files\Siemens\PLCSIMADV\API\6.0\Siemens.Simatic.Simulation.Runtime.Api.x64.dll</HintPath>
+        <HintPath>Siemens.Simatic.Simulation.Runtime.Api.x64.dll</HintPath>
       </Reference>
     </ItemGroup>
 

@@ -25,7 +25,7 @@
     </ItemGroup>
 
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-      <Exec Command="echo ^&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?^&gt;^&lt;Plugin^&gt;^&lt;AssemblyFile^&gt;$(AssemblyName).dll^&lt;/AssemblyFile^&gt;^&lt;AdditionalDirectory^&gt;C:\Program Files (x86)\Common Files\Siemens\PLCSIMADV\API^&lt;/AdditionalDirectory^&gt;^&lt;/Plugin^&gt; &gt; $(TargetDir)$(AssemblyName).plugin" />
+      <Exec Command="echo &quot;^&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?^&gt;^&lt;Plugin^&gt;^&lt;AssemblyFile^&gt;$(AssemblyName).dll^&lt;/AssemblyFile^&gt;^&lt;AdditionalDirectory^&gt;C:\Program Files (x86)\Common Files\Siemens\PLCSIMADV\API^&lt;/AdditionalDirectory^&gt;^&lt;/Plugin^&gt;&quot; &gt; $(TargetDir)$(AssemblyName).plugin" />
     </Target>
 
 </Project>

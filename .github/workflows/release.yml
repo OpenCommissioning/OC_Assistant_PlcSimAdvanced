@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install Versionize
+      run: dotnet tool install --global Versionize
+
+    - name: Setup git
+      run: |
+        git config --global user.email opencommissioning@spiratec.com
+        git config --global user.name "oc-bot"
+      
+    - name: Versioning
+      id: versionize
+      run: versionize --exit-insignificant-commits
+      continue-on-error: true
+
+    - name: Get current version
+      if: steps.versionize.outcome == 'success'
+      run: echo "VERSION=v$(versionize inspect)" >> $GITHUB_ENV
+
+    - name: Get current changelog
+      if: steps.versionize.outcome == 'success'
+      run: echo "$(versionize changelog)" > latest_changelog.md
+    
+    - name: Push changes to GitHub
+      if: steps.versionize.outcome == 'success'
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref }}
+        tags: true
+
+    - name: Dotnet build
+      if: steps.versionize.outcome == 'success'
+      env:
+        GH_TOKEN: ${{ secrets.GH_GIST_PAT }}
+        GIST_ID: ${{ secrets.GIST_ID }}
+      run: |
+        RAW_URL=$(gh api /gists/$GIST_ID | jq -r '.files.plcsimDLL.raw_url')
+        curl -L "$RAW_URL" > plcsim-base64.txt
+        base64 -d plcsim-base64.txt > OC.PlcSimAdvanced/Siemens.Simatic.Simulation.Runtime.Api.x64.dll
+        dotnet build OC.PlcSimAdvanced --configuration release --output ./Publish
+
+    - name: Publish new release
+      if: steps.versionize.outcome == 'success'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create ${{env.VERSION}} -t "Release ${{env.VERSION}}" -F latest_changelog.md
+        cd ./Publish
+        mkdir OC.PlcSimAdvanced
+        mv OC.PlcSimAdvanced.dll OC.PlcSimAdvanced/
+        mv Config.plugin OC.PlcSimAdvanced/
+        zip -r OC.PlcSimAdvanced_${{env.VERSION}}.zip OC.PlcSimAdvanced
+        gh release upload ${{env.VERSION}} OC.PlcSimAdvanced_${{env.VERSION}}.zip

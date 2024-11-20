@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Company>Spiratec AG</Company>
+        <Product>OC.PlcSimAdvanced</Product>
+        <LangVersion>default</LangVersion>
+        <Version>1.0.0</Version>
+        <TargetFramework>net8.0</TargetFramework>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+      <DebugType>none</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="Siemens.Simatic.Simulation.Runtime.Api.x64">
+        <HintPath>Siemens.Simatic.Simulation.Runtime.Api.x64.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="OC.Assistant.Sdk" Version="1.4.3" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="Config.plugin">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+    
+</Project>

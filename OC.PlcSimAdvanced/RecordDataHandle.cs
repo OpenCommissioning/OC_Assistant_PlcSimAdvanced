@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Diagnostics;
 using OC.Assistant.Sdk;
 
 namespace OC.PlcSimAdvanced;
@@ -70,7 +69,7 @@ internal class RecordDataHandle : IRecordDataHandle
     /// </summary>
     private void MainCycle()
     {
-        var stopwatch = new Stopwatch();
+        var stopwatch = new StopwatchEx();
                 
         while (LazyInstance.IsValueCreated)
         {

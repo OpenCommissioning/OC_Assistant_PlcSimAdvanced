@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Diagnostics;
 using Siemens.Simatic.Simulation.Runtime;
 using OC.Assistant.Sdk;
 using OC.Assistant.Sdk.Plugin;
@@ -23,7 +22,7 @@ public class PlcSimAdvanced : PluginBase
     private IRecordDataHandle? _recordDataHandle;
     private ConcurrentQueue<RecordData> _writeRes = new ();
     private ConcurrentQueue<RecordData> _readRes = new ();
-    private readonly Stopwatch _stopwatch = new ();
+    private readonly StopwatchEx _stopwatch = new ();
     private byte[] _inputArea = [];
     private byte[] _outputArea = [];
     private double _timeScaling = 1.0;

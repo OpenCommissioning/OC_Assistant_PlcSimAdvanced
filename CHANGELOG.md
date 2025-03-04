@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [versionize](https://github.com/versionize/versionize) for commit guidelines.
 
+<a name="1.0.2"></a>
+## [1.0.2](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/releases/tag/v1.0.2) (2025-03-04)
+
+### Bug Fixes
+
+* only connect to already open instances without creating new ones ([e72e73e](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/commit/e72e73ee2c9a0e67e46a59503326dc04f5d523a3))
+* upgrade SDK package reference ([7c3b73a](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/commit/7c3b73aced482d53c242d4a39601e244a0001f2b))
+
 <a name="1.0.1"></a>
 ## [1.0.1](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/releases/tag/v1.0.1) (2025-01-28)
 

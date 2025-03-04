@@ -165,20 +165,10 @@ public class PlcSimAdvanced : PluginBase
         }
             
         Logger.LogInfo(this, $"Trying to start and connect Plc '{_plcName}'...");
-            
-        try
-        {
-            //Register plc instance
-            _instance = SimulationRuntimeManager.RegisterInstance(_plcName);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(this, ex.Message, true);
-        }
 
         try
         {
-            _instance ??= SimulationRuntimeManager.CreateInterface(_plcName);
+            _instance = SimulationRuntimeManager.CreateInterface(_plcName);
             _instance.PowerOn();
 
             while (_instance.OperatingState != EOperatingState.Run && !token.IsCancellationRequested)
@@ -209,9 +199,9 @@ public class PlcSimAdvanced : PluginBase
             _instance.OnOperatingStateChanged += Instance_OnOperatingStateChanged;
             return true;
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            Logger.LogError(this, ex.Message);
+            Logger.LogError(this, e.Message);
             return false;
         }
     }

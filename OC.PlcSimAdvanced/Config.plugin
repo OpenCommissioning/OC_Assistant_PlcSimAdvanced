@@ -2,4 +2,6 @@
 <Plugin>
     <AssemblyFile>OC.PlcSimAdvanced.dll</AssemblyFile>
     <AdditionalDirectory>C:\Program Files (x86)\Common Files\Siemens\PLCSIMADV\API</AdditionalDirectory>
+	<RepositoryUrl>https://github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced</RepositoryUrl>
+    <RepositoryType>github</RepositoryType>
 </Plugin>

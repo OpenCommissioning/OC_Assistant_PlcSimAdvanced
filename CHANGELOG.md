@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [versionize](https://github.com/versionize/versionize) for commit guidelines.
 
+<a name="1.0.3"></a>
+## [1.0.3](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/releases/tag/v1.0.3) (2025-07-10)
+
+### Bug Fixes
+
+* add missing repository info to config file ([b2ad4e5](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/commit/b2ad4e5bd13f2e9efc7902c905ac5260911533a6))
+
 <a name="1.0.2"></a>
 ## [1.0.2](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/releases/tag/v1.0.2) (2025-03-04)
 

@@ -1,10 +1,8 @@
-﻿using Siemens.Simatic.Simulation.Runtime;
+﻿using OC.Assistant.Sdk.Plugin;
+using Siemens.Simatic.Simulation.Runtime;
 
 namespace OC.PlcSimAdvanced;
 
-/// <summary>
-/// Class representing an acyclic telegram.
-/// </summary>
 public class RecordData
 {
     private enum Telegram
@@ -18,46 +16,30 @@ public class RecordData
     private readonly SDataRecordInfo _info;
     private readonly int _identifier;
     private readonly Telegram _telegram;
-
-    /// <summary>
-    /// Siemens related information about the telegram.
-    /// </summary>
+    
     public SDataRecordInfo Info => _info;
-        
-    /// <summary>
-    /// Data of the telegram. Can be null.
-    /// </summary>
+    
     public byte[]? Data { get; }
+    
+    private ushort Identifier => (ushort)_identifier;
+    private ushort HardwareId => (ushort)Info.HardwareId;
+    private ushort Index => (ushort)Info.RecordIdx;
+    
+    public uint CbLength => (uint)(Data?.Length ?? 0);
 
-    /// <summary>
-    /// InvokeId of the telegram.
-    /// </summary>
-    public uint InvokeId => Info.RecordIdx * 0x10000 + Info.HardwareId;
-        
-    /// <summary>
-    /// IndexGroup of the telegram.
-    /// </summary>
-    public uint IndexGroup => 0x80000000 + Info.RecordIdx;
-        
-    /// <summary>
-    /// IndexOffset of the telegram.
-    /// </summary>
-    public uint IndexOffset => Info.HardwareId + (uint)_identifier * 0x10000;
-
-    /// <summary>
-    /// Get information about the telegram.
-    /// </summary>
-    public string Message
+    public RecordDataTelegram ToRecordDataRequest() => new(Identifier, HardwareId, Index, CbLength, Data);
+    
+    public string LogMessage
     {
         get
         {
             return _telegram switch
             {
-                Telegram.WrRec => $"WrRec  IGrp {IndexGroup:X}  IOffs {IndexOffset:X}  Data {BitConverter
+                Telegram.WrRec => $"WrRec  Identifier {Identifier}  HardwareId {HardwareId}  Index {Index}  Data {BitConverter
                     .ToString(Data ?? [], 0, Math.Min(10, Data?.Length ?? 0))}",
-                Telegram.RdRec => $"RdRec  IGrp {IndexGroup:X}  IOffs {IndexOffset:X}",
-                Telegram.WrRes => $"WrRes  IGrp {IndexGroup:X}  IOffs {IndexOffset:X}",
-                Telegram.RdRes => $"RdRes  IGrp {IndexGroup:X}  IOffs {IndexOffset:X}  Data {BitConverter
+                Telegram.RdRec => $"RdRec  Identifier {Identifier}  HardwareId {HardwareId}  Index {Index}",
+                Telegram.WrRes => $"WrRes  Identifier {Identifier}  HardwareId {HardwareId}  Index {Index}",
+                Telegram.RdRes => $"RdRes  Identifier {Identifier}  HardwareId {HardwareId}  Index {Index}  Data {BitConverter
                     .ToString(Data ?? [], 0, Math.Min(10, Data?.Length ?? 0))}",
                 _ => ""
             };
@@ -86,15 +68,15 @@ public class RecordData
     }
 
     /// <summary>
-    /// Constructor for RdRes or WrRes telegram, depending on <see cref="e"/>.<see cref="AdsServer.Response.Data"/>:
+    /// Constructor for RdRes or WrRes telegram, depending on <see cref="e"/>.<see cref="RecordDataTelegram.Data"/>:
     /// <br/>
-    /// WrRes: <see cref="AdsServer.Response.Data"/> is null<br/>
-    /// RdRes: <see cref="AdsServer.Response.Data"/> is not null<br/>
+    /// WrRes: <see cref="RecordDataTelegram.Data"/> is null<br/>
+    /// RdRes: <see cref="RecordDataTelegram.Data"/> is not null<br/>
     /// </summary>
-    public RecordData(AdsServer.Response e, int identifier)
+    public RecordData(RecordDataTelegram e, ushort identifier)
     {
-        _info.HardwareId = (ushort)e.InvokeId;
-        _info.RecordIdx = e.InvokeId >> 16;
+        _info.HardwareId = e.HardwareId;
+        _info.RecordIdx = e.Index;
         _info.DataSize = e.CbLength;
         Data = e.Data;
         _identifier = identifier;

@@ -5,15 +5,12 @@ Connects to a PLCSIM Advanced PLC instance using cyclic I/O and acyclic data com
 
 ### Quick Getting Started
 - Download the zip file from the latest release page
-- Unpack and place it in the directory or a subdirectory of the `OC.Assistant.exe`
-- Start the Assistant and connect or create a TwinCAT solution
-- Add a new plugin instance using the `+` button 
-- Select `PlcSimAdvanced`, configure parameters and press `Apply` ([see also](https://github.com/OpenCommissioning/OC_Assistant?tab=readme-ov-file#installation-1))
-- Depending on the parameters, a TwinCAT GVL with PLC In- and Outputs is generated  
-- The plugin starts when TwinCAT goes to Run Mode and tries to connect to the PLC instance
+- Unpack and place it in a `Plugins` folder in the directory of the `OC.Assistant.exe`
+- Start the Assistant, open a project and add a new plugin instance using the `+` button 
+- Select `PlcSimAdvanced`, configure parameters and press `Apply`
 
 ### Plugin Parameters
-- _AutoStart_: Automatic start and stop with TwinCAT
+- _AutoStart_: Automatic start and stop with the Assistant
 - _PlcName_: Name of the PLCSIM Advanced PLC instance
 - _Identifier_: Unique id for acyclic communication
 - _CycleTime_: CycleTime in ms

@@ -25,7 +25,7 @@ public class RecordData
     private ushort HardwareId => (ushort)Info.HardwareId;
     private ushort Index => (ushort)Info.RecordIdx;
     
-    public uint CbLength => (uint)(Data?.Length ?? 0);
+    public uint CbLength => _info.DataSize;
 
     public RecordDataTelegram ToRecordDataRequest() => new(Identifier, HardwareId, Index, CbLength, Data);
     

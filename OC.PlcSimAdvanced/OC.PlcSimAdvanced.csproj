@@ -21,7 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="OC.Assistant.Sdk" Version="1.6.1" />
+      <PackageReference Include="OC.Assistant.Sdk" Version="1.7.2" />
     </ItemGroup>
 
     <ItemGroup>

@@ -9,7 +9,7 @@ namespace OC.PlcSimAdvanced;
 public class AdsServer()
     : TwinCAT.Ads.Server.AdsServer("Open Commissioning AdsServer for PlcSimAdvanced")
 {
-    private readonly AmsAddress _plcAddress = new(851);
+    private readonly AmsAddress _plcAddress = new(ApiLocal.Interface.NetId, ApiLocal.Interface.Port);
     private readonly TcRecordDataList _tcRecordDataList = new();
 
     /// <summary>

@@ -13,9 +13,9 @@
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
       <DebugType>none</DebugType>
     </PropertyGroup>
-	
-	<ItemGroup>
-      <PackageReference Include="OC.Assistant.Sdk" Version="2.1.1" />
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\Sdk\OC.Assistant.Sdk\OC.Assistant.Sdk.csproj" />
     </ItemGroup>
 
     <ItemGroup>

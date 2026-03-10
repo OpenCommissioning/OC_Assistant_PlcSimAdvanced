@@ -4,7 +4,6 @@ using OC.Assistant.Sdk.Plugin;
 
 namespace OC.PlcSimAdvanced;
 
-[PluginIoType(IoType.Address)]
 [PluginDelayAfterStart(2000)]
 public class PlcSimAdvanced : PluginBase
 {
@@ -12,19 +11,40 @@ public class PlcSimAdvanced : PluginBase
     private readonly string _plcName = "PLC_1";
         
     [PluginParameter("Unique id for acyclic communication")]
-    private readonly int _identifier = 1;
+    private readonly ushort _identifier = 1;
         
     [PluginParameter("CycleTime in ms")]
     private readonly int _cycleTime = 10;
+    
+    [PluginParameter("e.g. 0-1023 or 0,1,2 or a combination")]
+    private readonly string _inputAddress = "0-1023";
+        
+    [PluginParameter("e.g. 0-1023 or 0,1,2 or a combination")]
+    private readonly string _outputAddress = "0-1023";
         
     private IInstance? _instance;
     private readonly StopwatchEx _stopwatch = new ();
     private byte[] _inputArea = [];
     private byte[] _outputArea = [];
     private double _timeScaling = 1.0;
+    private int[] _inputList = [];
+    private int[] _outputList = [];
 
     protected override bool OnSave()
     {
+        _inputList = _inputAddress.ToNumberList();
+        _outputList = _outputAddress.ToNumberList();
+
+        foreach (var address in _inputList)
+        {
+            InputStructure.AddVariable($"I{address}", ManagedType.Byte);
+        }
+
+        foreach (var address in _outputList)
+        {
+            OutputStructure.AddVariable($"Q{address}", ManagedType.Byte);
+        }
+        
         return true;
     }
 
@@ -78,7 +98,7 @@ public class PlcSimAdvanced : PluginBase
             }
 
             //Ads read
-            for (var i = 0; i < InputAddress.Length; ++i) _inputArea[InputAddress[i]] = InputBuffer[i];
+            for (var i = 0; i < _inputList.Length; ++i) _inputArea[_inputList[i]] = InputBuffer[i];
 
             //Write Plc inputs
             _instance.InputArea.WriteBytes(0, (uint)_inputArea.Length, _inputArea);
@@ -87,7 +107,7 @@ public class PlcSimAdvanced : PluginBase
             _outputArea = _instance.OutputArea.ReadBytes(0, (uint)_outputArea.Length);
 
             //Ads write
-            for (var i = 0; i < OutputAddress.Length; ++i) OutputBuffer[i] = _outputArea[OutputAddress[i]];
+            for (var i = 0; i < _outputList.Length; ++i) OutputBuffer[i] = _outputArea[_outputList[i]];
 
             var elapsedMilliseconds = _stopwatch.ElapsedMilliseconds;
             if ((int)elapsedMilliseconds > _cycleTime * 2)
@@ -178,33 +198,33 @@ public class PlcSimAdvanced : PluginBase
         Logger.LogInfo(this, $"Plc '{sender.Name}' changed from state '{prevState}' to '{operatingState}'");
     }
 
-    private void OnDataRecordWrite(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, SDataRecord dataRecord)
+    private void OnDataRecordWrite(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, SDataRecord e)
     {
-        var recordData = new RecordData(dataRecord, _identifier);
-        Logger.LogInfo(this, recordData.LogMessage, true);
-        RecordDataServer.WriteReq(recordData.ToRecordDataRequest());
+        Logger.LogInfo(this, $"WrRec  Identifier {_identifier}  HardwareId {e.Info.HardwareId}  Index {e.Info.RecordIdx}  Data {BitConverter
+            .ToString(e.Data, 0, Math.Min(10, e.Data.Length))}", true);
+        RecordDataServer.WriteReq(e.Info.ToRecordDataTelegram(_identifier, e.Data));
     }
 
-    private void OnDataRecordRead(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, SDataRecordInfo dataRecordInfo)
+    private void OnDataRecordRead(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, SDataRecordInfo e)
     {
-        var recordData = new RecordData(dataRecordInfo, _identifier);
-        Logger.LogInfo(this, recordData.LogMessage, true);
-        RecordDataServer.ReadReq(recordData.ToRecordDataRequest());
+        Logger.LogInfo(this, $"RdRec  Identifier {_identifier}  HardwareId {e.HardwareId}  Index {e.RecordIdx}", true);
+        RecordDataServer.ReadReq(e.ToRecordDataTelegram(_identifier));
     }
         
     private void OnWriteRes(RecordDataTelegram e)
     {
-        if (e.Identifier != (ushort)_identifier) return;
-        var recordData = new RecordData(e, (ushort)_identifier);
-        Logger.LogInfo(this, recordData.LogMessage, true);
-        _instance?.WriteRecordDone(recordData.Info, 0);
+        if (e.Identifier != _identifier) return;
+        var d = e.ToSDataRecord();
+        Logger.LogInfo(this, $"WrRes  Identifier {_identifier}  HardwareId {d.Info.HardwareId}  Index {d.Info.RecordIdx}", true);
+        _instance?.WriteRecordDone(d.Info, 0);
     }
 
     private void OnReadRes(RecordDataTelegram e)
     {
-        if (e.Identifier != (ushort)_identifier) return;
-        var recordData = new RecordData(e, (ushort)_identifier);
-        _instance?.ReadRecordDone(recordData.Info, recordData.Data, 0);
-        Logger.LogInfo(this, recordData.LogMessage, true);
+        if (e.Identifier != _identifier) return;
+        var d = e.ToSDataRecord();
+        Logger.LogInfo(this, $"RdRes  Identifier {_identifier}  HardwareId {d.Info.HardwareId}  Index {d.Info.HardwareId}  Data {BitConverter
+            .ToString(d.Data, 0, Math.Min(10, d.Data.Length))}", true);
+        _instance?.ReadRecordDone(d.Info, d.Data, 0);
     }
 }

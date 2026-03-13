@@ -1,4 +1,5 @@
-﻿using Siemens.Simatic.Simulation.Runtime;
+﻿using System.Xml.Linq;
+using Siemens.Simatic.Simulation.Runtime;
 using OC.Assistant.Sdk;
 using OC.Assistant.Sdk.Plugin;
 
@@ -29,6 +30,22 @@ public class PlcSimAdvanced : PluginBase
     private double _timeScaling = 1.0;
     private int[] _inputList = [];
     private int[] _outputList = [];
+
+    public PlcSimAdvanced()
+    {
+        MessageSystem.Receiver.MessageReceived += OnMessageReceived;
+    }
+
+    private void OnMessageReceived(string identifier, XElement payload)
+    {
+        if (_instance is null) return;
+        if (identifier != "TimeScaling" || !double.TryParse(payload.Value, out var timeScaling)) return;
+        
+        if (!(Math.Abs(_timeScaling - timeScaling) > 0.001)) return;
+        Logger.LogInfo(this, $"ScaleFactor for Plc '{_plcName}' changed from {_timeScaling} to {timeScaling}");
+        _timeScaling = timeScaling;
+        _instance.ScaleFactor = timeScaling;
+    }
 
     protected override bool OnSave()
     {
@@ -87,14 +104,6 @@ public class PlcSimAdvanced : PluginBase
                     CancellationRequest();
                     return;
                 }
-            }
-            
-            //Update ScaleFactor
-            if (Math.Abs(_timeScaling - TimeScaling) > 0.001)
-            {
-                Logger.LogInfo(this, $"ScaleFactor for Plc '{_plcName}' changed from {_timeScaling} to {TimeScaling}");
-                _timeScaling = TimeScaling;
-                _instance.ScaleFactor = _timeScaling;
             }
 
             //Ads read

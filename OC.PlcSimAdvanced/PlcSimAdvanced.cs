@@ -1,11 +1,10 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Xml.Linq;
 using Siemens.Simatic.Simulation.Runtime;
 using OC.Assistant.Sdk;
 using OC.Assistant.Sdk.Plugin;
 
 namespace OC.PlcSimAdvanced;
 
-[PluginIoType(IoType.Address)]
 [PluginDelayAfterStart(2000)]
 public class PlcSimAdvanced : PluginBase
 {
@@ -13,23 +12,56 @@ public class PlcSimAdvanced : PluginBase
     private readonly string _plcName = "PLC_1";
         
     [PluginParameter("Unique id for acyclic communication")]
-    private readonly int _identifier = 1;
+    private readonly ushort _identifier = 1;
         
     [PluginParameter("CycleTime in ms")]
     private readonly int _cycleTime = 10;
+    
+    [PluginParameter("e.g. 0-1023 or 0,1,2 or a combination")]
+    private readonly string _inputAddress = "0-1023";
+        
+    [PluginParameter("e.g. 0-1023 or 0,1,2 or a combination")]
+    private readonly string _outputAddress = "0-1023";
         
     private IInstance? _instance;
-    private IRecordDataHandle? _recordDataHandle;
-    private ConcurrentQueue<RecordData> _writeRes = new ();
-    private ConcurrentQueue<RecordData> _readRes = new ();
     private readonly StopwatchEx _stopwatch = new ();
     private byte[] _inputArea = [];
     private byte[] _outputArea = [];
     private double _timeScaling = 1.0;
-    private double _receivedTimeScaling = 1.0;
+    private int[] _inputList = [];
+    private int[] _outputList = [];
+
+    public PlcSimAdvanced()
+    {
+        EventSystem.ApiDataReceived += OnApiDataReceived;
+    }
+
+    private void OnApiDataReceived(string identifier, XElement payload)
+    {
+        if (_instance is null) return;
+        if (identifier != "data/timeScaling" || !double.TryParse(payload.Value, out var timeScaling)) return;
+        
+        if (!(Math.Abs(_timeScaling - timeScaling) > 0.001)) return;
+        Logger.LogInfo(this, $"ScaleFactor for Plc '{_plcName}' changed from {_timeScaling} to {timeScaling}");
+        _timeScaling = timeScaling;
+        _instance.ScaleFactor = timeScaling;
+    }
 
     protected override bool OnSave()
     {
+        _inputList = _inputAddress.ToNumberList();
+        _outputList = _outputAddress.ToNumberList();
+
+        foreach (var address in _inputList)
+        {
+            InputStructure.AddVariable($"I{address}", TcType.Byte);
+        }
+
+        foreach (var address in _outputList)
+        {
+            OutputStructure.AddVariable($"Q{address}", TcType.Byte);
+        }
+        
         return true;
     }
 
@@ -48,15 +80,8 @@ public class PlcSimAdvanced : PluginBase
         _outputArea = new byte[_instance.OutputArea.AreaSize];
         _timeScaling = _instance.ScaleFactor;
         
-        ApiLocal.Interface.TimeScalingChanged += ApiOnTimeScalingChanged;
-        
         Logger.LogInfo(this, $"Connected to Plc '{_plcName}'");
         return true;
-    }
-
-    private void ApiOnTimeScalingChanged(double value)
-    {
-        _receivedTimeScaling = value;
     }
 
     protected override void OnUpdate()
@@ -80,17 +105,9 @@ public class PlcSimAdvanced : PluginBase
                     return;
                 }
             }
-            
-            //Update ScaleFactor
-            if (_timeScaling.DiffersFrom(_receivedTimeScaling))
-            {
-                Logger.LogInfo(this, $"ScaleFactor for Plc '{_plcName}' changed from {_timeScaling} to {_receivedTimeScaling}");
-                _timeScaling = _receivedTimeScaling;
-                _instance.ScaleFactor = _timeScaling;
-            }
 
             //Ads read
-            for (var i = 0; i < InputAddress.Length; ++i) _inputArea[InputAddress[i]] = InputBuffer[i];
+            for (var i = 0; i < _inputList.Length; ++i) _inputArea[_inputList[i]] = InputBuffer[i];
 
             //Write Plc inputs
             _instance.InputArea.WriteBytes(0, (uint)_inputArea.Length, _inputArea);
@@ -99,20 +116,7 @@ public class PlcSimAdvanced : PluginBase
             _outputArea = _instance.OutputArea.ReadBytes(0, (uint)_outputArea.Length);
 
             //Ads write
-            for (var i = 0; i < OutputAddress.Length; ++i) OutputBuffer[i] = _outputArea[OutputAddress[i]];
-
-            //Send record data response if available
-            if (_writeRes.TryDequeue(out var recordData))
-            {
-                _instance.WriteRecordDone(recordData.Info, 0);
-                Logger.LogInfo(this, recordData.Message, true);
-            }
-
-            if (_readRes.TryDequeue(out recordData))
-            {
-                _instance.ReadRecordDone(recordData.Info, recordData.Data, 0);
-                Logger.LogInfo(this, recordData.Message, true);
-            }
+            for (var i = 0; i < _outputList.Length; ++i) OutputBuffer[i] = _outputArea[_outputList[i]];
 
             var elapsedMilliseconds = _stopwatch.ElapsedMilliseconds;
             if ((int)elapsedMilliseconds > _cycleTime * 2)
@@ -133,20 +137,15 @@ public class PlcSimAdvanced : PluginBase
         {
             if (_instance is not null)
             {
-                _instance.OnDataRecordRead -= Instance_OnDataRecordRead;
-                _instance.OnDataRecordWrite -= Instance_OnDataRecordWrite;
-                _instance.OnOperatingStateChanged -= Instance_OnOperatingStateChanged;
+                _instance.OnDataRecordRead -= OnDataRecordRead;
+                _instance.OnDataRecordWrite -= OnDataRecordWrite;
+                _instance.OnOperatingStateChanged -= InstanceOnOperatingStateChanged;
                 _instance.Dispose();
                 _instance = null;
             }
             
-            if (_recordDataHandle is not null)
-            {
-                _recordDataHandle.OnWriteRes -= AdsServer_OnAdsWriteCon;
-                _recordDataHandle.OnReadRes -= AdsServer_OnAdsReadCon;
-            }
-
-            ApiLocal.Interface.TimeScalingChanged -= ApiOnTimeScalingChanged;
+            RecordDataServer.OnWriteRes -= OnWriteRes;
+            RecordDataServer.OnReadRes -= OnReadRes;
         }
         catch (Exception ex)
         {
@@ -186,17 +185,14 @@ public class PlcSimAdvanced : PluginBase
             {
                 return false;
             }
-                
-            _writeRes = new ConcurrentQueue<RecordData>();
-            _readRes = new ConcurrentQueue<RecordData>();
-            _recordDataHandle = RecordDataHandle.Instance;
-            _recordDataHandle.OnWriteRes += AdsServer_OnAdsWriteCon;
-            _recordDataHandle.OnReadRes += AdsServer_OnAdsReadCon;
+            
+            RecordDataServer.OnWriteRes += OnWriteRes;
+            RecordDataServer.OnReadRes += OnReadRes;
 
             _instance.UpdateTagList();
-            _instance.OnDataRecordRead += Instance_OnDataRecordRead;
-            _instance.OnDataRecordWrite += Instance_OnDataRecordWrite;
-            _instance.OnOperatingStateChanged += Instance_OnOperatingStateChanged;
+            _instance.OnDataRecordRead += OnDataRecordRead;
+            _instance.OnDataRecordWrite += OnDataRecordWrite;
+            _instance.OnOperatingStateChanged += InstanceOnOperatingStateChanged;
             return true;
         }
         catch (Exception e)
@@ -206,38 +202,38 @@ public class PlcSimAdvanced : PluginBase
         }
     }
         
-    private void Instance_OnOperatingStateChanged(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, EOperatingState prevState, EOperatingState operatingState)
+    private void InstanceOnOperatingStateChanged(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, EOperatingState prevState, EOperatingState operatingState)
     {
         Logger.LogInfo(this, $"Plc '{sender.Name}' changed from state '{prevState}' to '{operatingState}'");
     }
 
-    private void Instance_OnDataRecordWrite(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, SDataRecord dataRecord)
+    private void OnDataRecordWrite(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, SDataRecord e)
     {
-        var recordData = new RecordData(dataRecord, _identifier);
-        Logger.LogInfo(this, recordData.Message, true);
-        _recordDataHandle?.AddWriteReq(recordData);
+        Logger.LogInfo(this, $"WrRec  Identifier {_identifier}  HardwareId {e.Info.HardwareId}  Index {e.Info.RecordIdx}  Data {BitConverter
+            .ToString(e.Data, 0, Math.Min(10, e.Data.Length))}", true);
+        RecordDataServer.WriteReq(e.Info.ToRecordDataTelegram(_identifier, e.Data));
     }
 
-    private void Instance_OnDataRecordRead(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, SDataRecordInfo dataRecordInfo)
+    private void OnDataRecordRead(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, SDataRecordInfo e)
     {
-        var recordData = new RecordData(dataRecordInfo, _identifier);
-        Logger.LogInfo(this, recordData.Message, true);
-        _recordDataHandle?.AddReadReq(recordData);
+        Logger.LogInfo(this, $"RdRec  Identifier {_identifier}  HardwareId {e.HardwareId}  Index {e.RecordIdx}", true);
+        RecordDataServer.ReadReq(e.ToRecordDataTelegram(_identifier));
     }
         
-    private void AdsServer_OnAdsWriteCon(AdsServer.Response e)
+    private void OnWriteRes(RecordDataTelegram e)
     {
-        var expectedResult = 0x80000000 + (ushort)_identifier;
-        if ((uint)e.Result != expectedResult) return; //WriteRes is not for this plc instance
-        var recordData = new RecordData(e, _identifier);
-        _writeRes.Enqueue(recordData);
+        if (e.Identifier != _identifier) return;
+        var d = e.ToSDataRecord();
+        Logger.LogInfo(this, $"WrRes  Identifier {_identifier}  HardwareId {d.Info.HardwareId}  Index {d.Info.RecordIdx}", true);
+        _instance?.WriteRecordDone(d.Info, 0);
     }
 
-    private void AdsServer_OnAdsReadCon(AdsServer.Response e)
+    private void OnReadRes(RecordDataTelegram e)
     {
-        var expectedResult = 0x80000000 + (ushort)_identifier;
-        if ((uint)e.Result != expectedResult) return; //ReadRes is not for this plc instance
-        var recordData = new RecordData(e, _identifier);
-        _readRes.Enqueue(recordData);
+        if (e.Identifier != _identifier) return;
+        var d = e.ToSDataRecord();
+        Logger.LogInfo(this, $"RdRes  Identifier {_identifier}  HardwareId {d.Info.HardwareId}  Index {d.Info.HardwareId}  Data {BitConverter
+            .ToString(d.Data, 0, Math.Min(10, d.Data.Length))}", true);
+        _instance?.ReadRecordDone(d.Info, d.Data, 0);
     }
 }

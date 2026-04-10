@@ -7,7 +7,7 @@
         <Product>OC.PlcSimAdvanced</Product>
         <LangVersion>default</LangVersion>
         <Version>1.0.4</Version>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
@@ -15,13 +15,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Reference Include="Siemens.Simatic.Simulation.Runtime.Api.x64">
-        <HintPath>Siemens.Simatic.Simulation.Runtime.Api.x64.dll</HintPath>
-      </Reference>
+        <ProjectReference Include="..\..\..\Sdk\OC.Assistant.Sdk\OC.Assistant.Sdk.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="OC.Assistant.Sdk" Version="1.7.2" />
+      <Reference Include="Siemens.Simatic.Simulation.Runtime.Api.x64">
+        <HintPath>Siemens.Simatic.Simulation.Runtime.Api.x64.dll</HintPath>
+      </Reference>
     </ItemGroup>
 
     <ItemGroup>

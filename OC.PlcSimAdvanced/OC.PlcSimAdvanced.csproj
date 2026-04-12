@@ -15,10 +15,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Sdk\OC.Assistant.Sdk\OC.Assistant.Sdk.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
       <Reference Include="Siemens.Simatic.Simulation.Runtime.Api.x64">
         <HintPath>Siemens.Simatic.Simulation.Runtime.Api.x64.dll</HintPath>
       </Reference>
@@ -28,6 +24,10 @@
       <None Update="Config.plugin">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\Assistant\OC.Assistant.Sdk\OC.Assistant.Sdk.csproj" />
     </ItemGroup>
     
 </Project>

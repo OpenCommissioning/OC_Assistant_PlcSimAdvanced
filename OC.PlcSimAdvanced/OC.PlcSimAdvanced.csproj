@@ -27,7 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\Assistant\OC.Assistant.Sdk\OC.Assistant.Sdk.csproj" />
+      <PackageReference Include="OC.Assistant.Sdk" Version="1.18.0" />
     </ItemGroup>
     
 </Project>

@@ -1,4 +1,6 @@
-﻿using System.Xml.Linq;
+﻿using System.Buffers.Binary;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Siemens.Simatic.Simulation.Runtime;
 using OC.Assistant.Sdk;
 using OC.Assistant.Sdk.Plugin;
@@ -22,6 +24,12 @@ public class PlcSimAdvanced : PluginBase
         
     [PluginParameter("e.g. 0-1023 or 0,1,2 or a combination")]
     private readonly string _outputAddress = "0-1023";
+    
+    [PluginParameter("One or multiple Tags to read, defined as TagName:TagType, separated by semicolon")]
+    private readonly string _tagsToRead = "";
+        
+    [PluginParameter("One or multiple Tags to write, defined as TagName:TagType, separated by semicolon")]
+    private readonly string _tagsToWrite = "";
         
     private IInstance? _instance;
     private readonly StopwatchEx _stopwatch = new ();
@@ -30,6 +38,13 @@ public class PlcSimAdvanced : PluginBase
     private double _timeScaling = 1.0;
     private int[] _inputList = [];
     private int[] _outputList = [];
+    private Tag[] _readTags = [];
+    private Tag[] _writeTags = [];
+
+    /// <param name="Name">Name of the tag in the PlcSim Advanced instance.</param>
+    /// <param name="Type">Type of the tag.</param>
+    /// <param name="BitOffset">Offset of the tag in the <see cref="InputBuffer"/> or <see cref="OutputBuffer"/>.</param>
+    private readonly record struct Tag(string Name, TcType Type, int BitOffset);
 
     public PlcSimAdvanced()
     {
@@ -52,6 +67,17 @@ public class PlcSimAdvanced : PluginBase
         _inputList = _inputAddress.ToNumberList();
         _outputList = _outputAddress.ToNumberList();
 
+        try
+        {
+            _writeTags = ParseTags(_tagsToWrite, _inputList.Length);
+            _readTags = ParseTags(_tagsToRead, _outputList.Length);
+        }
+        catch (FormatException e)
+        {
+            Logger.LogError(this, e.Message);
+            return false;
+        }
+
         foreach (var address in _inputList)
         {
             InputStructure.AddVariable($"I{address}", TcType.Byte);
@@ -60,6 +86,16 @@ public class PlcSimAdvanced : PluginBase
         foreach (var address in _outputList)
         {
             OutputStructure.AddVariable($"Q{address}", TcType.Byte);
+        }
+        
+        foreach (var tag in _writeTags)
+        {
+            InputStructure.AddVariable(ToVariableName(tag.Name), tag.Type);
+        }
+
+        foreach (var tag in _readTags)
+        {
+            OutputStructure.AddVariable(ToVariableName(tag.Name), tag.Type);
         }
         
         return true;
@@ -79,7 +115,9 @@ public class PlcSimAdvanced : PluginBase
         _inputArea = new byte[_instance.InputArea.AreaSize];
         _outputArea = new byte[_instance.OutputArea.AreaSize];
         _timeScaling = _instance.ScaleFactor;
-        
+        _writeTags = GetValidTags(_instance, _writeTags);
+        _readTags = GetValidTags(_instance, _readTags);
+
         Logger.LogInfo(this, $"Connected to Plc '{_plcName}'");
         return true;
     }
@@ -111,6 +149,12 @@ public class PlcSimAdvanced : PluginBase
 
             //Write Plc inputs
             _instance.InputArea.WriteBytes(0, (uint)_inputArea.Length, _inputArea);
+
+            //Write Plc tags
+            foreach (var tag in _writeTags) WriteTag(_instance, tag, InputBuffer);
+
+            //Read Plc tags
+            foreach (var tag in _readTags) ReadTag(_instance, tag, OutputBuffer);
 
             //Read Plc outputs
             _outputArea = _instance.OutputArea.ReadBytes(0, (uint)_outputArea.Length);
@@ -201,7 +245,170 @@ public class PlcSimAdvanced : PluginBase
             return false;
         }
     }
-        
+
+    /// <summary>
+    /// Parses tag definitions (e.g. <c>Tag1:Int;"DB1".Tag2:Real</c>) and calculates the offsets
+    /// the same way the <see cref="PluginBase.InputStructure"/> and <see cref="PluginBase.OutputStructure"/> do.
+    /// </summary>
+    /// <param name="definitions">Tag definitions as TagName:TagType, separated by semicolon.</param>
+    /// <param name="byteOffset">Byte offset of the first tag.</param>
+    private static Tag[] ParseTags(string definitions, int byteOffset)
+    {
+        var tags = new List<Tag>();
+        var bitOffset = byteOffset * 8;
+
+        foreach (var definition in definitions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separator = definition.LastIndexOf(':');
+            var name = separator > 0 ? definition[..separator].Trim() : "";
+            var typeName = separator > 0 ? definition[(separator + 1)..].Trim() : "";
+
+            if (name == "" || !Enum.TryParse<TcType>(typeName, true, out var type) ||
+                !Enum.IsDefined(type) || type == TcType.Unknown)
+            {
+                throw new FormatException($"Invalid tag definition '{definition}'. Expected TagName:TagType");
+            }
+
+            //Every type except Bit starts at a full byte
+            if (type != TcType.Bit && bitOffset % 8 != 0) bitOffset += 8 - bitOffset % 8;
+            tags.Add(new Tag(name, type, bitOffset));
+            bitOffset += type.BitSize();
+        }
+
+        return [.. tags];
+    }
+
+    /// <summary>
+    /// Converts a Plc tag name (e.g. <c>"DB1".Tag</c>) into a valid variable name (e.g. <c>DB1_Tag</c>).
+    /// </summary>
+    private static string ToVariableName(string tagName)
+        => Regex.Replace(tagName, "[^a-zA-Z0-9_]+", "_").Trim('_');
+
+    /// <summary>
+    /// Returns all tags that exist in the Plc with a matching type.
+    /// Invalid tags are ignored, otherwise they would fail every cycle.
+    /// </summary>
+    private Tag[] GetValidTags(IInstance instance, Tag[] tags)
+    {
+        return
+        [
+            .. tags.Where(tag =>
+            {
+                try
+                {
+                    //Test read into a temporary buffer, the typed read methods also check the type
+                    ReadTag(instance, tag, new byte[tag.BitOffset / 8 + 8]);
+                    return true;
+                }
+                catch (Exception e)
+                {
+                    Logger.LogWarning(this, $"Tag '{tag.Name}' of type {tag.Type.Name()} is ignored: {e.Message}");
+                    return false;
+                }
+            })
+        ];
+    }
+
+    /// <summary>
+    /// Reads a tag from the Plc and writes the value to the buffer.
+    /// </summary>
+    private static void ReadTag(IInstance instance, Tag tag, byte[] buffer)
+    {
+        var offset = tag.BitOffset / 8;
+        var span = buffer.AsSpan(offset);
+
+        switch (tag.Type)
+        {
+            case TcType.Bit:
+                var mask = (byte)(1 << tag.BitOffset % 8);
+                if (instance.ReadBool(tag.Name)) buffer[offset] |= mask;
+                else buffer[offset] &= (byte)~mask;
+                break;
+            case TcType.Bool:
+                span[0] = instance.ReadBool(tag.Name) ? (byte)1 : (byte)0;
+                break;
+            case TcType.Byte or TcType.UsInt:
+                span[0] = instance.ReadUInt8(tag.Name);
+                break;
+            case TcType.SInt:
+                span[0] = (byte)instance.ReadInt8(tag.Name);
+                break;
+            case TcType.Word or TcType.Uint:
+                BinaryPrimitives.WriteUInt16LittleEndian(span, instance.ReadUInt16(tag.Name));
+                break;
+            case TcType.Int:
+                BinaryPrimitives.WriteInt16LittleEndian(span, instance.ReadInt16(tag.Name));
+                break;
+            case TcType.Dword or TcType.UDint:
+                BinaryPrimitives.WriteUInt32LittleEndian(span, instance.ReadUInt32(tag.Name));
+                break;
+            case TcType.Dint:
+                BinaryPrimitives.WriteInt32LittleEndian(span, instance.ReadInt32(tag.Name));
+                break;
+            case TcType.Real:
+                BinaryPrimitives.WriteSingleLittleEndian(span, instance.ReadFloat(tag.Name));
+                break;
+            case TcType.LWord or TcType.ULint:
+                BinaryPrimitives.WriteUInt64LittleEndian(span, instance.ReadUInt64(tag.Name));
+                break;
+            case TcType.Lint:
+                BinaryPrimitives.WriteInt64LittleEndian(span, instance.ReadInt64(tag.Name));
+                break;
+            case TcType.LReal:
+                BinaryPrimitives.WriteDoubleLittleEndian(span, instance.ReadDouble(tag.Name));
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Reads a value from the buffer and writes it to the Plc tag.
+    /// </summary>
+    private static void WriteTag(IInstance instance, Tag tag, byte[] buffer)
+    {
+        var offset = tag.BitOffset / 8;
+        var span = buffer.AsSpan(offset);
+
+        switch (tag.Type)
+        {
+            case TcType.Bit:
+                instance.WriteBool(tag.Name, (buffer[offset] & 1 << tag.BitOffset % 8) != 0);
+                break;
+            case TcType.Bool:
+                instance.WriteBool(tag.Name, span[0] != 0);
+                break;
+            case TcType.Byte or TcType.UsInt:
+                instance.WriteUInt8(tag.Name, span[0]);
+                break;
+            case TcType.SInt:
+                instance.WriteInt8(tag.Name, (sbyte)span[0]);
+                break;
+            case TcType.Word or TcType.Uint:
+                instance.WriteUInt16(tag.Name, BinaryPrimitives.ReadUInt16LittleEndian(span));
+                break;
+            case TcType.Int:
+                instance.WriteInt16(tag.Name, BinaryPrimitives.ReadInt16LittleEndian(span));
+                break;
+            case TcType.Dword or TcType.UDint:
+                instance.WriteUInt32(tag.Name, BinaryPrimitives.ReadUInt32LittleEndian(span));
+                break;
+            case TcType.Dint:
+                instance.WriteInt32(tag.Name, BinaryPrimitives.ReadInt32LittleEndian(span));
+                break;
+            case TcType.Real:
+                instance.WriteFloat(tag.Name, BinaryPrimitives.ReadSingleLittleEndian(span));
+                break;
+            case TcType.LWord or TcType.ULint:
+                instance.WriteUInt64(tag.Name, BinaryPrimitives.ReadUInt64LittleEndian(span));
+                break;
+            case TcType.Lint:
+                instance.WriteInt64(tag.Name, BinaryPrimitives.ReadInt64LittleEndian(span));
+                break;
+            case TcType.LReal:
+                instance.WriteDouble(tag.Name, BinaryPrimitives.ReadDoubleLittleEndian(span));
+                break;
+        }
+    }
+
     private void InstanceOnOperatingStateChanged(IInstance sender, ERuntimeErrorCode errorCode, DateTime dateTime, EOperatingState prevState, EOperatingState operatingState)
     {
         Logger.LogInfo(this, $"Plc '{sender.Name}' changed from state '{prevState}' to '{operatingState}'");

@@ -16,6 +16,10 @@ Connects to a PLCSIM Advanced PLC instance using cyclic I/O and acyclic data com
 - _CycleTime_: CycleTime in ms
 - _InputAddress_: Used PLC input range (e.g. 0-1023 or 0,1,2 or a combination)
 - _OutputAddress_: Used PLC output range (e.g. 0-1023 or 0,1,2 or a combination)
+- _TagsToRead_: PLC tags to read, defined as `TagName:TagType`, separated by semicolon (e.g. `"DB1".Speed:Real;Motor_On:Bool`)
+- _TagsToWrite_: PLC tags to write, defined as `TagName:TagType`, separated by semicolon (e.g. `"DB1".Setpoint:Int`)
+
+  Supported types: `Bit`, `Bool`, `Byte`, `USInt`, `SInt`, `Word`, `UInt`, `Int`, `DWord`, `UDInt`, `DInt`, `Real`, `LWord`, `LInt`, `ULInt`, `LReal`
 
 ### Requirements
 To run the plugin, you need PLCSIM Advanced installed on your system with a valid license.\

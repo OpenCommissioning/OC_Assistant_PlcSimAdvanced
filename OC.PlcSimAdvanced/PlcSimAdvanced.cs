@@ -30,6 +30,12 @@ public class PlcSimAdvanced : PluginBase
         
     [PluginParameter("One or multiple Tags to write, defined as TagName:TagType, separated by semicolon")]
     private readonly string _tagsToWrite = "";
+    
+    [PluginParameter("Log all available data block tags of the Plc after connecting")]
+    private readonly bool _logAvailableTags = false;
+    
+    [PluginParameter("Only log tags containing one of these texts, separated by semicolon (e.g. M01DriveData)")]
+    private readonly string _tagFilter = "";
         
     private IInstance? _instance;
     private readonly StopwatchEx _stopwatch = new ();
@@ -117,6 +123,7 @@ public class PlcSimAdvanced : PluginBase
         _inputArea = new byte[_instance.InputArea.AreaSize];
         _outputArea = new byte[_instance.OutputArea.AreaSize];
         _timeScaling = _instance.ScaleFactor;
+        if (_logAvailableTags) LogAvailableTags(_instance);
         CreateSignalList(_instance, ref _writeTags, out _writeSignals);
         CreateSignalList(_instance, ref _readTags, out _readSignals);
 
@@ -253,7 +260,12 @@ public class PlcSimAdvanced : PluginBase
             RecordDataServer.OnWriteRes += OnWriteRes;
             RecordDataServer.OnReadRes += OnReadRes;
 
-            _instance.UpdateTagList();
+            var dataBlockFilter = BuildDataBlockFilter();
+            if (dataBlockFilter.Length > 0)
+            {
+                Logger.LogInfo(this, $"Loading tags for data blocks {dataBlockFilter}");
+                _instance.UpdateTagList(ETagListDetails.IODB, true, dataBlockFilter);
+            }
             _instance.OnDataRecordRead += OnDataRecordRead;
             _instance.OnDataRecordWrite += OnDataRecordWrite;
             _instance.OnOperatingStateChanged += InstanceOnOperatingStateChanged;
@@ -303,6 +315,53 @@ public class PlcSimAdvanced : PluginBase
     /// </summary>
     private static string ToVariableName(string tagName)
         => Regex.Replace(tagName, "[^a-zA-Z0-9_]+", "_").Trim('_');
+
+    /// <summary>
+    /// Builds the PLCSIM Advanced data block filter from the configured tags.
+    /// The runtime expects quoted block names, for example <c>"VIBN","M01DriveData"</c>.
+    /// </summary>
+    private string BuildDataBlockFilter()
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definitions in new[] { _tagsToRead, _tagsToWrite })
+        {
+            foreach (var definition in definitions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var separator = definition.LastIndexOf(':');
+                var name = separator > 0 ? definition[..separator].Trim() : definition.Trim();
+                var dot = name.IndexOf('.');
+                var block = (dot > 0 ? name[..dot] : name).Trim().Trim('"');
+                if (block.Length > 0) names.Add(block);
+            }
+        }
+
+        return string.Join(",", names.Select(name => $"\"{name}\""));
+    }
+
+    /// <summary>
+    /// Logs the data block tags already loaded for this connection, formatted as TagName:TagType.
+    /// </summary>
+    private void LogAvailableTags(IInstance instance)
+    {
+        var filters = _tagFilter.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var count = 0;
+
+        foreach (var tag in instance.TagInfos)
+        {
+            if (tag.Area != EArea.DataBlock) continue;
+            if (tag.PrimitiveDataType is EPrimitiveDataType.Struct or EPrimitiveDataType.Unspecific) continue;
+            if (filters.Length > 0 && !filters.Any(f => tag.Name.Contains(f, StringComparison.OrdinalIgnoreCase))) continue;
+
+            var supported = Enum.TryParse<TcType>(tag.DataType.ToString(), true, out var type) &&
+                            Enum.IsDefined(type) && type != TcType.Unknown;
+            Logger.LogInfo(this, supported
+                ? $"Available tag: {tag.Name}:{tag.DataType}"
+                : $"Available tag: {tag.Name}:{tag.DataType} (type not supported)");
+            count++;
+        }
+
+        Logger.LogInfo(this, $"{count} available tags logged for Plc '{_plcName}'");
+    }
 
     /// <summary>
     /// Creates a signal list for the given tags and removes tags that the Plc rejects.<br/>

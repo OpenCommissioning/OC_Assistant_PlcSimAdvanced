@@ -30,12 +30,6 @@ public class PlcSimAdvanced : PluginBase
         
     [PluginParameter("One or multiple Tags to write, defined as TagName:TagType, separated by semicolon")]
     private readonly string _tagsToWrite = "";
-    
-    [PluginParameter("Log all available data block tags of the Plc after connecting")]
-    private readonly bool _logAvailableTags = false;
-    
-    [PluginParameter("Only log tags containing one of these texts, separated by semicolon (e.g. M01DriveData)")]
-    private readonly string _tagFilter = "";
         
     private IInstance? _instance;
     private readonly StopwatchEx _stopwatch = new ();
@@ -123,7 +117,6 @@ public class PlcSimAdvanced : PluginBase
         _inputArea = new byte[_instance.InputArea.AreaSize];
         _outputArea = new byte[_instance.OutputArea.AreaSize];
         _timeScaling = _instance.ScaleFactor;
-        if (_logAvailableTags) LogAvailableTags(_instance);
         CreateSignalList(_instance, ref _writeTags, out _writeSignals);
         CreateSignalList(_instance, ref _readTags, out _readSignals);
 
@@ -336,31 +329,6 @@ public class PlcSimAdvanced : PluginBase
         }
 
         return string.Join(",", names.Select(name => $"\"{name}\""));
-    }
-
-    /// <summary>
-    /// Logs the data block tags already loaded for this connection, formatted as TagName:TagType.
-    /// </summary>
-    private void LogAvailableTags(IInstance instance)
-    {
-        var filters = _tagFilter.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var count = 0;
-
-        foreach (var tag in instance.TagInfos)
-        {
-            if (tag.Area != EArea.DataBlock) continue;
-            if (tag.PrimitiveDataType is EPrimitiveDataType.Struct or EPrimitiveDataType.Unspecific) continue;
-            if (filters.Length > 0 && !filters.Any(f => tag.Name.Contains(f, StringComparison.OrdinalIgnoreCase))) continue;
-
-            var supported = Enum.TryParse<TcType>(tag.DataType.ToString(), true, out var type) &&
-                            Enum.IsDefined(type) && type != TcType.Unknown;
-            Logger.LogInfo(this, supported
-                ? $"Available tag: {tag.Name}:{tag.DataType}"
-                : $"Available tag: {tag.Name}:{tag.DataType} (type not supported)");
-            count++;
-        }
-
-        Logger.LogInfo(this, $"{count} available tags logged for Plc '{_plcName}'");
     }
 
     /// <summary>

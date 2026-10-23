@@ -1,4 +1,4 @@
-# Open Commissioning Assistant Plugin for PLCSIM Advanced
+# OC.Assistant Plugin for PLCSIM Advanced
 
 ### Description
 Connects to a PLCSIM Advanced PLC instance using cyclic I/O and acyclic data communication.
@@ -30,4 +30,4 @@ To build the plugin yourself, you need to copy the
 You can find the dll in `C:\Program Files (x86)\Common Files\Siemens\PLCSIMADV\API\<YourVersion>\` by default.
 
 > [!NOTE] 
-> The plugin has been tested with PLCSIM Advanced Version `v4 SP1`, `v6` and `v6 Update1`
+> The plugin has been tested with PLCSIM Advanced Version `v4 SP1`, `v6`, `v7` and `v8`

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [versionize](https://github.com/versionize/versionize) for commit guidelines.
 
+<a name="1.2.0"></a>
+## [1.2.0](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/releases/tag/v1.2.0) (2026-10-23)
+
+### Features
+
+* implement an option to read and write Plc variables by tag ([2673eb1](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/commit/2673eb1e49bfe5d949ec3b8b6913beded58059de))
+
+### Bug Fixes
+
+* load only configured data block tags ([1497897](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/commit/1497897855fa5a1e9b08fc5bd6bf51fdfefb6cb8))
+
 <a name="1.1.0"></a>
 ## [1.1.0](https://www.github.com/OpenCommissioning/OC_Assistant_PlcSimAdvanced/releases/tag/v1.1.0) (2026-05-06)
 
